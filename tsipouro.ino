@@ -112,9 +112,6 @@ void loop() {
         case 7: {
             pressStopTime = millis();
 
-            lcd.setCursor(7, 1);
-            lcd.print("H:MM:SS");
-
             unsigned long delta = pressStopTime - pressStartTime;
             char deltaStr[6] = { '\0' };
 
