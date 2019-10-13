@@ -5,8 +5,5 @@
   * Use H:MM:SS format (Hours, Minutes and Seconds with padding)
 * Use MM:SS format for all delta time displays.
 * Refactor code
-
-# TODO
-
-* Test original code.
 * Test refactored code.
+
