@@ -20,7 +20,9 @@
 
 const int buttonPin = 2;
 const int buzzerPin = 9;
-const int pinOut = 10;
+const int relayPin = 10;
+const int ledOnPin = 7;
+const int ledOffPin = 8;
 
 double temperature;
 int buttonState = LOW;
@@ -91,9 +93,13 @@ void updateTemperature() {
     if (temperature != currentTemperature) {
         temperature = currentTemperature;
         if (temperature >= 30.0) {
-            digitalWrite(pinOut, HIGH);
+            digitalWrite(relayPin, HIGH);
+            digitalWrite(ledOnPin, HIGH);
+            digitalWrite(ledOffPin, LOW);
         } else if (temperature < 20.0) {
-            digitalWrite(pinOut, LOW);
+            digitalWrite(relayPin, LOW);
+            digitalWrite(ledOnPin, LOW);
+            digitalWrite(ledOffPin, HIGH);
         }
 
         lcd.setCursor(7, 0);
@@ -159,8 +165,10 @@ void setup () {
 #endif
 
     pinMode(buttonPin, INPUT);
-    pinMode(pinOut, OUTPUT);
+    pinMode(relayPin, OUTPUT);
     pinMode(buzzerPin, OUTPUT);
+    pinMode(ledOnPin, OUTPUT);
+    pinMode(ledOffPin, OUTPUT);
 
     lcd.init();
     lcd.backlight();
