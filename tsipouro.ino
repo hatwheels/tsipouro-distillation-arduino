@@ -17,36 +17,19 @@
 #define BUZZER_FREQUENCY        (700)
 #define BUZZER_PERIOD           (500)
 // Debug Macro
-#define SERIAL_DEBUG            (0)
+#define SERIAL_DEBUG            (1)
+#if SERIAL_DEBUG
+    #define TEST_INTERVAL       (10*1000UL)
+#endif
 
-const int buttonPin = 2;
-const int buzzerPin = 9;
-const int relayPin = 10;
-const int ledOnPin = 7;
-const int ledOffPin = 8;
-
-double temperature;
-int buttonState = LOW;
-bool nextStep = false;
+bool nextStep;
 unsigned int stepCounter = 0;
 
-double Thermistor(int rawADC) {
-    double temperature = log(10000.0 * ((1024.0 / rawADC - 1)));
-
-    temperature = 1 / (0.001129148 + (0.000234125 + (0.0000000876741 * temperature * temperature)) * temperature);
-    temperature -= 273.15;
-    temperature = (temperature * 9.0) / 5.0 + 32.0;
-    temperature = (temperature - 32) * 5 / 9;
-    
-    return (round(temperature * 10.0) / 10.0);
-}
-
-LiquidCrystal_I2C lcd(0x27, LCD_CHARS, LINES);
-
-Timer debounceTimer;
-Timer temperatureTimer;
 Timer processTimer;
 Timer stepTimer;
+#if SERIAL_DEBUG
+    Timer testTimer;
+#endif
 
 /* Get number of Seconds out of Millis. */
 unsigned int numberOfSeconds(unsigned long t) {
@@ -68,86 +51,40 @@ unsigned int numberOfMinutesForDelta (unsigned long t) {
     return ((t / SECS_PER_MIN) % DELTA_LCD_MIN);
 }
 
-/*
-    Clear one line of I2C LCD.
-    args: line - number of line to be cleared.
-*/
-void clearLcdLine (uint8_t line) {
-    lcd.setCursor(0, line);
-    for (uint8_t i = 0; i < LCD_CHARS; i++) {
-        lcd.write((char) 254);
-    }
-}
-
-/* timer callback to debounce button. */
-void debounceButton() {
-    int reading = digitalRead(buttonPin);
-#if SERIAL_DEBUG
-    Serial.println("debouncing callback");
-#endif
-    if (reading != buttonState && (buttonState = reading) == HIGH) {
-        nextStep = true;
-    }
-}
-
-/* timer callback to update temperature on LCD. */
-void updateTemperature() {
-    double currentTemperature = Thermistor(analogRead(0));
-#if SERIAL_DEBUG
-    Serial.println("Temperature updated");
-#endif
-    if (temperature != currentTemperature) {
-        temperature = currentTemperature;
-        if (temperature >= 30.0) {
-            digitalWrite(relayPin, HIGH);
-            digitalWrite(ledOnPin, HIGH);
-            digitalWrite(ledOffPin, LOW);
-        } else if (temperature < 20.0) {
-            digitalWrite(relayPin, LOW);
-            digitalWrite(ledOnPin, LOW);
-            digitalWrite(ledOffPin, HIGH);
-        }
-
-        lcd.setCursor(7, 0);
-        lcd.print(String(temperature, 1));
-        lcd.write((char) 223);
-        lcd.write('C');
-    }
-}
-
 /* timer callback to update process timespan on LCD. */
 void updateProcessTime() {
     unsigned long span = processTimer.getElapsedTime() / 1000;
     char spanStr[9] = { '\0' };
 
     sprintf(spanStr, "%02d:%02d:%02d", numberOfHours(span), numberOfMinutes(span), numberOfSeconds(span));
-    lcd.setCursor(7, 1);
-    lcd.print(spanStr);
 #if SERIAL_DEBUG
     Serial.print("process time: ");
     Serial.println(spanStr);
 #endif
 }
 
+#if SERIAL_DEBUG
+void updateTestTime() {
+    nextStep = true;
+}
+#endif
+
 /* Manage Start/Stop of the process and its intermediate steps. */
 void manageProcess() {
     if (nextStep) {
         nextStep = false;
-        tone(buzzerPin, BUZZER_FREQUENCY, BUZZER_PERIOD);
-
         switch (stepCounter = (stepCounter + 1) % 8) {
             case 0:
-                clearLcdLine(1);
-                clearLcdLine(2);
-                clearLcdLine(3);
-
+#if SERIAL_DEBUG
+                Serial.println("Stopped");
+#endif
                 processTimer.stop();
                 stepTimer.stop();
                 break;
             case 1:
-                lcd.setCursor(7, 1);
-                lcd.print("00:00:00");
-
+#if SERIAL_DEBUG
+                Serial.println("Started");
+#endif
                 processTimer.start();
                 stepTimer.start();
                 break;
@@ -156,9 +93,10 @@ void manageProcess() {
                 char deltaStr[7] = { '\0' };
 
                 sprintf(deltaStr, "%03d:%02d", numberOfMinutesForDelta(delta), numberOfSeconds(delta));
-                lcd.setCursor(((stepCounter - 2) % 3) * 7, stepCounter > 4 ? 3 : 2);
-                lcd.print(deltaStr);
-
+#if SERIAL_DEBUG
+                Serial.print("step time: ");
+                Serial.println(deltaStr);
+#endif
                 stepTimer.reset();
             }
         }
@@ -169,34 +107,15 @@ void setup () {
 #if SERIAL_DEBUG
     Serial.begin(9600);
 #endif
-
-    pinMode(buttonPin, INPUT);
-    pinMode(relayPin, OUTPUT);
-    pinMode(buzzerPin, OUTPUT);
-    pinMode(ledOnPin, OUTPUT);
-    pinMode(ledOffPin, OUTPUT);
-
-    lcd.init();
-    lcd.backlight();
-
-    temperature = Thermistor(analogRead(0));
-
-    temperatureTimer.setInterval(TEMPERATURE_INTERVAL);
-    temperatureTimer.setCallback(updateTemperature);
-    temperatureTimer.start();
-    
     processTimer.setInterval(PROCESS_INTERVAL);
     processTimer.setCallback(updateProcessTime);
-    
-    debounceTimer.setInterval(DEBOUNCE_DELAY);
-    debounceTimer.setCallback(debounceButton);
-    debounceTimer.start();
+#if SERIAL_DEBUG
+    testTimer.setInterval(TEST_INTERVAL);
+    testTimer.setCallback(updateTestTime);
+#endif
 }
 
 void loop () {
-    temperatureTimer.update();
-    debounceTimer.update();
     processTimer.update();
-    stepTimer.update();
     manageProcess();
 }
