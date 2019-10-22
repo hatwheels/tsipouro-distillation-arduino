@@ -8,6 +8,7 @@
 #define SECS_PER_MIN            (60UL)
 #define SECS_PER_HOUR           (3600UL)
 #define SECS_PER_DAY            (SECS_PER_HOUR * 24L)
+#define DELTA_LCD_MIN           (999UL)
 #define LCD_CHARS               (20)
 #define LINES                   (4)
 #define TEMPERATURE_INTERVAL    (1000UL)
@@ -60,6 +61,11 @@ unsigned int numberOfMinutes(unsigned long t) {
 /* Get number of Hours out of Millis. */
 unsigned int numberOfHours(unsigned long t) {
   return (( t % SECS_PER_DAY) / SECS_PER_HOUR);
+}
+
+/* Get number of Minutes out of Millis for Delta LCD display. */
+unsigned int numberOfMinutesForDelta (unsigned long t) {
+    return ((t / SECS_PER_MIN) % DELTA_LCD_MIN);
 }
 
 /*
@@ -147,9 +153,9 @@ void manageProcess() {
                 break;
             default: {
                 unsigned long delta = stepTimer.getElapsedTime() / 1000;
-                char deltaStr[6] = { '\0' };
+                char deltaStr[7] = { '\0' };
 
-                sprintf(deltaStr, "%02d:%02d", numberOfMinutes(delta), numberOfSeconds(delta));
+                sprintf(deltaStr, "%03d:%02d", numberOfMinutesForDelta(delta), numberOfSeconds(delta));
                 lcd.setCursor(((stepCounter - 2) % 3) * 7, stepCounter > 4 ? 3 : 2);
                 lcd.print(deltaStr);
 
@@ -184,7 +190,7 @@ void setup () {
     
     debounceTimer.setInterval(DEBOUNCE_DELAY);
     debounceTimer.setCallback(debounceButton);
-    debounceTimer.start();    
+    debounceTimer.start();
 }
 
 void loop () {
