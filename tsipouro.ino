@@ -1,5 +1,5 @@
 #include <math.h>
-// LiquidCrystal I2C - Version: Latest
+// LiquidCrystal I2C - https://github.com/johnrickman/LiquidCrystal_I2C
 #include <LiquidCrystal_I2C.h>
 // Timer - https://github.com/brunocalou/Timer
 #include <timer.h>
@@ -130,7 +130,7 @@ void updateProcessTime() {
     lcd.print(minutes);
     lcd.write(':');
     if (seconds < 10) {
-        lcd.write('0')
+        lcd.write('0');
     }
     lcd.print(seconds);
 }
@@ -169,7 +169,7 @@ void manageProcess() {
                 if (minutes < 10) {
                     lcd.write('0');
                 }
-                lcd.print(minutes):
+                lcd.print(minutes);
                 lcd.write(':');
                 if (seconds < 10) {
                     lcd.write('0');
