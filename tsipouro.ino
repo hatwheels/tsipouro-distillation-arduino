@@ -8,7 +8,7 @@
 #define SECS_PER_MIN            (60UL)
 #define SECS_PER_HOUR           (3600UL)
 #define SECS_PER_DAY            (SECS_PER_HOUR * 24L)
-#define DELTA_LCD_MIN           (999UL)
+#define DELTA_LCD_MIN           (1000UL)
 #define LCD_CHARS               (20)
 #define LINES                   (4)
 #define TEMPERATURE_INTERVAL    (1000UL)
@@ -49,22 +49,22 @@ Timer processTimer;
 Timer stepTimer;
 
 /* Get number of Seconds out of Millis. */
-unsigned int numberOfSeconds(unsigned long t) {
+int numberOfSeconds(unsigned long t) {
   return (t % SECS_PER_MIN);
 }
 
 /* Get number of Minutes out of Millis. */
-unsigned int numberOfMinutes(unsigned long t) {
+int numberOfMinutes(unsigned long t) {
   return ((t / SECS_PER_MIN) % SECS_PER_MIN);
 }
 
 /* Get number of Hours out of Millis. */
-unsigned int numberOfHours(unsigned long t) {
+int numberOfHours(unsigned long t) {
   return (( t % SECS_PER_DAY) / SECS_PER_HOUR);
 }
 
 /* Get number of Minutes out of Millis for Delta LCD display. */
-unsigned int numberOfMinutesForDelta (unsigned long t) {
+int numberOfMinutesForDelta (unsigned long t) {
     return ((t / SECS_PER_MIN) % DELTA_LCD_MIN);
 }
 
@@ -118,14 +118,27 @@ void updateTemperature() {
 /* timer callback to update process timespan on LCD. */
 void updateProcessTime() {
     unsigned long span = processTimer.getElapsedTime() / 1000;
-    char spanStr[9] = { '\0' };
+    int hours =  numberOfHours(span);
+    int minutes = numberOfMinutes(span);
+    int seconds = numberOfSeconds(span);
 
-    sprintf(spanStr, "%02d:%02d:%02d", numberOfHours(span), numberOfMinutes(span), numberOfSeconds(span));
     lcd.setCursor(7, 1);
-    lcd.print(spanStr);
+    if (hours < 10) {
+        lcd.write('0');
+    }
+    lcd.print(hours);
+    lcd.write(':');
+    if (minutes < 10) {
+        lcd.write('0');
+    }
+    lcd.print(minutes);
+    lcd.write(':');
+    if (seconds < 10) {
+        lcd.write('0')
+    }
+    lcd.print(seconds);
 #if SERIAL_DEBUG
     Serial.print("process time: ");
-    Serial.println(spanStr);
 #endif
 }
 
@@ -153,11 +166,22 @@ void manageProcess() {
                 break;
             default: {
                 unsigned long delta = stepTimer.getElapsedTime() / 1000;
-                char deltaStr[7] = { '\0' };
+                int minutes = numberOfMinutesForDelta(delta);
+                int seconds = numberOfSeconds(delta);
 
-                sprintf(deltaStr, "%03d:%02d", numberOfMinutesForDelta(delta), numberOfSeconds(delta));
                 lcd.setCursor(((stepCounter - 2) % 3) * 7, stepCounter > 4 ? 3 : 2);
-                lcd.print(deltaStr);
+                if (minutes < 100) {
+                    lcd.write('0');
+                }
+                if (minutes < 10) {
+                    lcd.write('0');
+                }
+                lcd.print(minutes):
+                lcd.write(':');
+                if (seconds < 10) {
+                    lcd.write('0');
+                }
+                lcd.print(seconds);
 
                 stepTimer.reset();
             }
