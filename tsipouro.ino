@@ -82,9 +82,7 @@ void clearLcdLine (uint8_t line) {
 /* timer callback to debounce button. */
 void debounceButton() {
     int reading = digitalRead(buttonPin);
-#if SERIAL_DEBUG
-    Serial.println("debouncing callback");
-#endif
+
     if (reading != buttonState && (buttonState = reading) == HIGH) {
         nextStep = true;
     }
@@ -93,9 +91,7 @@ void debounceButton() {
 /* timer callback to update temperature on LCD. */
 void updateTemperature() {
     double currentTemperature = Thermistor(analogRead(0));
-#if SERIAL_DEBUG
-    Serial.println("Temperature updated");
-#endif
+
     if (temperature != currentTemperature) {
         temperature = currentTemperature;
         if (temperature >= 30.0) {
@@ -137,9 +133,6 @@ void updateProcessTime() {
         lcd.write('0')
     }
     lcd.print(seconds);
-#if SERIAL_DEBUG
-    Serial.print("process time: ");
-#endif
 }
 
 /* Manage Start/Stop of the process and its intermediate steps. */
