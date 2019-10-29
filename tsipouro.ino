@@ -207,6 +207,9 @@ void setup () {
 
     lcd.setCursor(0, 0);
     lcd.print("OFF");
+
+    digitalWrite(ledOnPin, LOW);
+    digitalWrite(ledOffPin, HIGH);
 }
 
 void loop () {
