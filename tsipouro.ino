@@ -1,8 +1,6 @@
 #include <math.h>
 // LiquidCrystal I2C - https://github.com/johnrickman/LiquidCrystal_I2C
 #include <LiquidCrystal_I2C.h>
-// Timer - https://github.com/brunocalou/Timer
-#include <timer.h>
 
 // Useful Constants
 #define SECS_PER_MIN            (60UL)
@@ -13,7 +11,8 @@
 #define LINES                   (4)
 #define TEMPERATURE_INTERVAL    (1000UL)
 #define PROCESS_INTERVAL        (1000UL)
-#define DEBOUNCE_DELAY          (50UL)
+#define STEP_INTERVAL           (1000UL)
+#define DEBOUNCE_DELAY          (100UL)
 #define BUZZER_FREQUENCY        (700)
 #define BUZZER_PERIOD           (500)
 // Debug Macro
@@ -24,6 +23,10 @@ const int buzzerPin = 9;
 const int relayPin = 10;
 const int ledOnPin = 7;
 const int ledOffPin = 8;
+
+unsigned long debounceTime, temperatureTime, processTime, stepTime;
+unsigned long processStartTime, stepStartTime;
+bool isProcessOn, isStepOn;
 
 double temperature;
 int buttonState = LOW;
@@ -43,11 +46,6 @@ double Thermistor(int rawADC) {
 
 LiquidCrystal_I2C lcd(0x27, LCD_CHARS, LINES);
 
-Timer debounceTimer;
-Timer temperatureTimer;
-Timer processTimer;
-Timer stepTimer;
-
 /* Get number of Seconds out of Millis. */
 int numberOfSeconds(unsigned long t) {
   return (t % SECS_PER_MIN);
@@ -61,11 +59,6 @@ int numberOfMinutes(unsigned long t) {
 /* Get number of Hours out of Millis. */
 int numberOfHours(unsigned long t) {
   return (( t % SECS_PER_DAY) / SECS_PER_HOUR);
-}
-
-/* Get number of Minutes out of Millis for Delta LCD display. */
-int numberOfMinutesForDelta (unsigned long t) {
-    return ((t / SECS_PER_MIN) % DELTA_LCD_MIN);
 }
 
 /*
@@ -83,6 +76,9 @@ void clearLcdLine (uint8_t line) {
 void debounceButton() {
     int reading = digitalRead(buttonPin);
 
+#if SERIAL_DEBUG
+  Serial.println("debounce callback");
+#endif SERIAL_DEBUG
     if (reading != buttonState && (buttonState = reading) == HIGH) {
         nextStep = true;
     }
@@ -98,10 +94,14 @@ void updateTemperature() {
             digitalWrite(relayPin, HIGH);
             digitalWrite(ledOnPin, HIGH);
             digitalWrite(ledOffPin, LOW);
+            lcd.setCursor(0, 0);
+            lcd.print("ON ");
         } else if (temperature < 20.0) {
             digitalWrite(relayPin, LOW);
             digitalWrite(ledOnPin, LOW);
             digitalWrite(ledOffPin, HIGH);
+            lcd.setCursor(0, 0);
+            lcd.print("OFF");
         }
 
         lcd.setCursor(7, 0);
@@ -113,7 +113,7 @@ void updateTemperature() {
 
 /* timer callback to update process timespan on LCD. */
 void updateProcessTime() {
-    unsigned long span = processTimer.getElapsedTime() / 1000;
+    unsigned long span = (processTime - processStartTime) / 1000;
     int hours =  numberOfHours(span);
     int minutes = numberOfMinutes(span);
     int seconds = numberOfSeconds(span);
@@ -135,8 +135,25 @@ void updateProcessTime() {
     lcd.print(seconds);
 }
 
+void updateStepTime(unsigned int id) {
+    unsigned long delta = (stepTime - stepStartTime) / 1000;
+    int minutes = numberOfMinutes(delta);
+    int seconds = numberOfSeconds(delta);
+
+    lcd.setCursor(((id - 2) % 3) * 7, id > 4 ? 3 : 2);
+    if (minutes < 10) {
+        lcd.write('0');
+    }
+    lcd.print(minutes);
+    lcd.write(':');
+    if (seconds < 10) {
+        lcd.write('0');
+    }
+    lcd.print(seconds);
+}
+
 /* Manage Start/Stop of the process and its intermediate steps. */
-void manageProcess() {
+void manageProcess(unsigned long t) {
     if (nextStep) {
         nextStep = false;
         tone(buzzerPin, BUZZER_FREQUENCY, BUZZER_PERIOD);
@@ -147,37 +164,23 @@ void manageProcess() {
                 clearLcdLine(2);
                 clearLcdLine(3);
 
-                processTimer.stop();
-                stepTimer.stop();
+                isProcessOn = false;
+                stepStartTime = 0;
+                processStartTime = 0;
                 break;
             case 1:
                 lcd.setCursor(7, 1);
                 lcd.print("00:00:00");
 
-                processTimer.start();
-                stepTimer.start();
+                isProcessOn = true;
+                isStepOn = true;
+                processStartTime = stepStartTime =  t;
                 break;
-            default: {
-                unsigned long delta = stepTimer.getElapsedTime() / 1000;
-                int minutes = numberOfMinutesForDelta(delta);
-                int seconds = numberOfSeconds(delta);
-
-                lcd.setCursor(((stepCounter - 2) % 3) * 7, stepCounter > 4 ? 3 : 2);
-                if (minutes < 100) {
-                    lcd.write('0');
-                }
-                if (minutes < 10) {
-                    lcd.write('0');
-                }
-                lcd.print(minutes);
-                lcd.write(':');
-                if (seconds < 10) {
-                    lcd.write('0');
-                }
-                lcd.print(seconds);
-
-                stepTimer.reset();
-            }
+            case 7:
+                isStepOn = false;
+            default:
+                updateStepTime(stepCounter);
+                stepStartTime = stepTime;
         }
     }
 }
@@ -193,27 +196,37 @@ void setup () {
     pinMode(ledOnPin, OUTPUT);
     pinMode(ledOffPin, OUTPUT);
 
+    debounceTime = temperatureTime = processTime = stepTime = 0;
+    processStartTime = stepStartTime = 0;
+    isProcessOn = isStepOn = false;
+
     lcd.init();
     lcd.backlight();
 
-    temperature = Thermistor(analogRead(0));
+    temperature = -273.15;
 
-    temperatureTimer.setInterval(TEMPERATURE_INTERVAL);
-    temperatureTimer.setCallback(updateTemperature);
-    temperatureTimer.start();
-    
-    processTimer.setInterval(PROCESS_INTERVAL);
-    processTimer.setCallback(updateProcessTime);
-    
-    debounceTimer.setInterval(DEBOUNCE_DELAY);
-    debounceTimer.setCallback(debounceButton);
-    debounceTimer.start();
+    lcd.setCursor(0, 0);
+    lcd.print("OFF");
 }
 
 void loop () {
-    temperatureTimer.update();
-    debounceTimer.update();
-    processTimer.update();
-    stepTimer.update();
-    manageProcess();
+    unsigned long currentTime = millis();
+
+    if (currentTime > debounceTime + DEBOUNCE_DELAY) {
+        debounceTime = currentTime;
+        debounceButton();
+    }
+    if (currentTime > temperatureTime + TEMPERATURE_INTERVAL) {
+        temperatureTime = currentTime;
+        updateTemperature();
+    }
+    if (isStepOn && (currentTime > stepTime + STEP_INTERVAL)) {
+        stepTime = currentTime;
+        updateStepTime(stepCounter + 1);
+    }
+    if (isProcessOn && (currentTime > processTime + PROCESS_INTERVAL)) {
+        processTime = currentTime;
+        updateProcessTime();
+    }
+    manageProcess(currentTime);
 }
